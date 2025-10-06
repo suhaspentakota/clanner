@@ -47,6 +47,14 @@ jobs:
       - name: Cache Gradle
         uses: gradle/actions/setup-gradle@v3
 
+      - name: Install Android SDK components
+        run: |
+          set -euo pipefail
+          echo "Installing Android SDK Platform 34 and Build Tools 34.0.0..."
+          $ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager --install "platforms;android-34" "build-tools;34.0.0" "platform-tools"
+          echo "Accepting all Android SDK licenses..."
+          yes | $ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager --licenses || true
+
       - name: Validate module exists
         run: |
           if [ "${{ github.event.inputs.module }}" = "app-legacy" ] && [ ! -d "app-legacy" ]; then
@@ -67,11 +75,11 @@ jobs:
           GRADLE="./gradle-8.9/bin/gradle"
 
           if [ "$VARIANT" = "debug" ]; then
-            $GRADLE -p . :$MODULE:assembleDebug -PAPI_BASE_URL_DEBUG="$API_URL"
+            $GRADLE -p . :$MODULE:assembleDebug -PAPI_BASE_URL_DEBUG="$API_URL" --stacktrace --info
             OUT="$MODULE/build/outputs/apk/debug/*.apk"
             [ "$MODULE" = "app" ] && OUT="app/build/outputs/apk/debug/*.apk"
           else
-            $GRADLE -p . :$MODULE:assembleRelease -PAPI_BASE_URL_RELEASE="$API_URL"
+            $GRADLE -p . :$MODULE:assembleRelease -PAPI_BASE_URL_RELEASE="$API_URL" --stacktrace --info
             OUT="$MODULE/build/outputs/apk/release/*.apk"
             [ "$MODULE" = "app" ] && OUT="app/build/outputs/apk/release/*.apk"
           fi
