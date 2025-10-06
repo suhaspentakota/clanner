@@ -1,0 +1,87 @@
+name: Build and Release APK
+
+on:
+  workflow_dispatch:
+    inputs:
+      module:
+        description: "Module to build (app or app-legacy)"
+        required: true
+        default: "app"
+      variant:
+        description: "Build variant (debug or release)"
+        required: true
+        default: "debug"
+      api_base_url:
+        description: "API base URL (emulator: http://10.0.2.2:8000/v1/)"
+        required: true
+        default: "http://10.0.2.2:8000/v1/"
+      tag_name:
+        description: "Release tag (e.g., v0.1.0-apk)"
+        required: true
+        default: "v0.1.0-apk"
+      release_name:
+        description: "Release title"
+        required: false
+        default: ""
+      prerelease:
+        description: "Mark as prerelease"
+        required: false
+        type: boolean
+        default: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: android
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Cache Gradle
+        uses: gradle/actions/setup-gradle@v3
+
+      - name: Validate module exists
+        run: |
+          if [ "${{ github.event.inputs.module }}" = "app-legacy" ] && [ ! -d "app-legacy" ]; then
+            echo "Module app-legacy does not exist on this branch."; exit 1; fi
+
+      - name: Build
+        run: |
+          MODULE="${{ github.event.inputs.module }}"
+          VARIANT="${{ github.event.inputs.variant }}"
+          API_URL="${{ github.event.inputs.api_base_url }}"
+
+          if [ "$VARIANT" = "debug" ]; then
+            # If your Gradle reads API_BASE_URL_DEBUG, pass it; harmless if unused.
+            ./gradlew :$MODULE:assembleDebug -PAPI_BASE_URL_DEBUG="$API_URL"
+            if [ "$MODULE" = "app" ]; then
+              OUT="app/build/outputs/apk/debug/*.apk"
+            else
+              OUT="$MODULE/build/outputs/apk/debug/*.apk"
+            fi
+          else
+            ./gradlew :$MODULE:assembleRelease -PAPI_BASE_URL_RELEASE="$API_URL"
+            if [ "$MODULE" = "app" ]; then
+              OUT="app/build/outputs/apk/release/*.apk"
+            else
+              OUT="$MODULE/build/outputs/apk/release/*.apk"
+            fi
+          fi
+          echo "APK_GLOB=$OUT" >> $GITHUB_ENV
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.event.inputs.tag_name }}
+          name: ${{ github.event.inputs.release_name }}
+          prerelease: ${{ github.event.inputs.prerelease }}
+          files: ${{ env.APK_GLOB }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
