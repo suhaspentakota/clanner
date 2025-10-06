@@ -53,27 +53,43 @@ jobs:
             echo "Module app-legacy does not exist on this branch."; exit 1; fi
 
       - name: Build
+        shell: bash
         run: |
+          set -euo pipefail
           MODULE="${{ github.event.inputs.module }}"
           VARIANT="${{ github.event.inputs.variant }}"
           API_URL="${{ github.event.inputs.api_base_url }}"
 
-          if [ "$VARIANT" = "debug" ]; then
-            # If your Gradle reads API_BASE_URL_DEBUG, pass it; harmless if unused.
-            ./gradlew :$MODULE:assembleDebug -PAPI_BASE_URL_DEBUG="$API_URL"
-            if [ "$MODULE" = "app" ]; then
-              OUT="app/build/outputs/apk/debug/*.apk"
-            else
+          # Prefer wrapper if present
+          WRAPPER="./gradlew"
+          if [ -x "$WRAPPER" ]; then
+            echo "Using Gradle Wrapper"
+            chmod +x "$WRAPPER" || true
+            if [ "$VARIANT" = "debug" ]; then
+              $WRAPPER :$MODULE:assembleDebug -PAPI_BASE_URL_DEBUG="$API_URL"
               OUT="$MODULE/build/outputs/apk/debug/*.apk"
+              [ "$MODULE" = "app" ] && OUT="app/build/outputs/apk/debug/*.apk"
+            else
+              $WRAPPER :$MODULE:assembleRelease -PAPI_BASE_URL_RELEASE="$API_URL"
+              OUT="$MODULE/build/outputs/apk/release/*.apk"
+              [ "$MODULE" = "app" ] && OUT="app/build/outputs/apk/release/*.apk"
             fi
           else
-            ./gradlew :$MODULE:assembleRelease -PAPI_BASE_URL_RELEASE="$API_URL"
-            if [ "$MODULE" = "app" ]; then
-              OUT="app/build/outputs/apk/release/*.apk"
+            echo "Wrapper not found; bootstrapping Gradle 8.9"
+            curl -sSL -o gradle.zip "https://services.gradle.org/distributions/gradle-8.9-bin.zip"
+            unzip -q gradle.zip
+            GRADLE="./gradle-8.9/bin/gradle"
+            if [ "$VARIANT" = "debug" ]; then
+              $GRADLE -p . :$MODULE:assembleDebug -PAPI_BASE_URL_DEBUG="$API_URL"
+              OUT="$MODULE/build/outputs/apk/debug/*.apk"
+              [ "$MODULE" = "app" ] && OUT="app/build/outputs/apk/debug/*.apk"
             else
+              $GRADLE -p . :$MODULE:assembleRelease -PAPI_BASE_URL_RELEASE="$API_URL"
               OUT="$MODULE/build/outputs/apk/release/*.apk"
+              [ "$MODULE" = "app" ] && OUT="app/build/outputs/apk/release/*.apk"
             fi
           fi
+
           echo "APK_GLOB=$OUT" >> $GITHUB_ENV
 
       - name: Create GitHub Release
