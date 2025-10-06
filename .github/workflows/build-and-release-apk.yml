@@ -75,11 +75,11 @@ jobs:
           GRADLE="./gradle-8.9/bin/gradle"
 
           if [ "$VARIANT" = "debug" ]; then
-            $GRADLE -p . :$MODULE:assembleDebug -PAPI_BASE_URL_DEBUG="$API_URL" --stacktrace --info
+            $GRADLE -p . :$MODULE:assembleDebug -PAPI_BASE_URL_DEBUG="$API_URL" -Pandroid.useAndroidX=true -Pandroid.enableJetifier=true --stacktrace --info
             OUT="$MODULE/build/outputs/apk/debug/*.apk"
             [ "$MODULE" = "app" ] && OUT="app/build/outputs/apk/debug/*.apk"
           else
-            $GRADLE -p . :$MODULE:assembleRelease -PAPI_BASE_URL_RELEASE="$API_URL" --stacktrace --info
+            $GRADLE -p . :$MODULE:assembleRelease -PAPI_BASE_URL_RELEASE="$API_URL" -Pandroid.useAndroidX=true -Pandroid.enableJetifier=true --stacktrace --info
             OUT="$MODULE/build/outputs/apk/release/*.apk"
             [ "$MODULE" = "app" ] && OUT="app/build/outputs/apk/release/*.apk"
           fi
